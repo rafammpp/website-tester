@@ -12,6 +12,7 @@ BOT_NAME = 'website_tester'
 SPIDER_MODULES = ['website_tester.spiders']
 NEWSPIDER_MODULE = 'website_tester.spiders'
 
+DEPTH_LIMIT = 0
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'website_tester (+http://www.yourdomain.com)'
@@ -37,10 +38,11 @@ ROBOTSTXT_OBEY = True
 #TELNETCONSOLE_ENABLED = False
 
 # Override the default request headers:
-#DEFAULT_REQUEST_HEADERS = {
-#   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-#   'Accept-Language': 'en',
-#}
+DEFAULT_REQUEST_HEADERS = {
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en',
+  'X-OV2-Bot-Name': 'broken-links-bot',
+}
 
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html

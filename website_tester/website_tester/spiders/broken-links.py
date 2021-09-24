@@ -1,24 +1,56 @@
-import scrapy
+import scrapy, re
+
+
+def get_prefix(url):
+    regex = re.compile(r'(http(s)?://(?P<domain>[^/]+))?/(?P<prefix>\w\w(-\w\w)?)/(?P<path>.*)')
+    matches = regex.match(url)
+    return matches.group('prefix') if matches else ''
 
 
 class BrokenLinksSpider(scrapy.Spider):
-    name = 'brokenlink-checker'
-    handle_httpstatus_list = 404, 500,
-    allowed_domains = ['127.0.0.1:8000']
+    name = 'broken-links'
+    allowed_domains = []
+    allowed_prefixes = ['']
+    start_urls = []
 
-    def __init__(self, site, *args, **kwargs):
+    def __init__(self, urls, prefixes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.start_urls = [site]
+
+        for url in urls.split(','):
+            url = url.strip()
+            self.start_urls.append(url)
+            regex = re.compile(r'http(s)?://(?P<domain>[^/]+)(/(?P<path>.*))?')
+            matches = regex.match(url)
+            try:
+                self.allowed_domains.append(matches.group('domain'))
+            except AttributeError:
+                self.allowed_domains.append(url)
+
+            try:
+                self.allowed_prefixes.append(get_prefix(url))
+            except AttributeError:
+                pass
+
         try:
-            self.DOMAIN = site.split('//')[1]
-        except IndexError:
-            self.DOMAIN = site
+            self.allowed_prefixes += [ p.strip() for p in prefixes.split(',') ]
+        except AttributeError:
+            pass
 
-        self.visited_urls = []
+        print('>'*10, f'{self.allowed_domains=}')
+        print('>'*10, f'{self.allowed_prefixes=}')
 
-
+    def is_allowed(self, url):
+        try:
+            url = url[0]
+        except (IndexError):
+            pass
+        try:
+            return not self.allowed_prefixes or get_prefix(url) in self.allowed_prefixes
+        except (TypeError, AttributeError):
+            return False
+    
     def parse(self, response):
-        if response.status in self.handle_httpstatus_list:
+        if response.status != 200:
             item = {}
             item['url'] = response.url
             item['prev_page'] = response.meta['prev_url']
@@ -27,15 +59,26 @@ class BrokenLinksSpider(scrapy.Spider):
             item['status'] = response.status
 
             yield item
+        
+        try:
+            lang = response.xpath('/html/@lang').get()
+        except:
+            lang = 'en'
+        
+        for link in response.css('a'):
+            href = link.xpath('@href').extract()
+            text = link.xpath('text()').extract()
+            # print('#'*25, f'{href=}')
 
-        if self.DOMAIN in response.url and response.url not in self.visited_urls:
-            for link in response.css('a'):
-                href = link.xpath('@href').extract()
-                text = link.xpath('text()').extract()
-                if href: # maybe should show an error if no href
-                    self.visited_urls.append(href)
-                    yield response.follow(link, self.parse, meta={
+            if self.is_allowed(href):
+                # print('ALLOWED')
+                yield response.follow(link, self.parse,
+                    meta={
                         'prev_link_text': text,
                         'prev_href': href,
                         'prev_url': response.url,
-                    })
+                    },
+                    headers={
+                        'Accept-Language': lang,
+                    }
+                )
