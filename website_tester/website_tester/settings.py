@@ -14,6 +14,9 @@ NEWSPIDER_MODULE = 'website_tester.spiders'
 
 DEPTH_LIMIT = 0
 
+RETRY_ENABLED = False
+HTTPERROR_ALLOW_ALL = True
+
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'website_tester (+http://www.yourdomain.com)'
 

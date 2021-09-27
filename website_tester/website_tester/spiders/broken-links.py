@@ -1,4 +1,4 @@
-import scrapy, re
+import scrapy, re, logging
 
 
 def get_prefix(url):
@@ -8,7 +8,7 @@ def get_prefix(url):
 
 
 class BrokenLinksSpider(scrapy.Spider):
-    name = 'broken-links'
+    name = 'internal-broken-links'
     allowed_domains = []
     allowed_prefixes = ['']
     start_urls = []
@@ -22,7 +22,8 @@ class BrokenLinksSpider(scrapy.Spider):
             regex = re.compile(r'http(s)?://(?P<domain>[^/]+)(/(?P<path>.*))?')
             matches = regex.match(url)
             try:
-                self.allowed_domains.append(matches.group('domain'))
+                if (domain:=matches.group('domain')) not in self.allowed_domains:
+                    self.allowed_domains.append(domain)
             except AttributeError:
                 self.allowed_domains.append(url)
 
@@ -35,9 +36,9 @@ class BrokenLinksSpider(scrapy.Spider):
             self.allowed_prefixes += [ p.strip() for p in prefixes.split(',') ]
         except AttributeError:
             pass
-
-        print('>'*10, f'{self.allowed_domains=}')
-        print('>'*10, f'{self.allowed_prefixes=}')
+        
+        logging.info(f'Allowed domains: {self.allowed_domains}')
+        logging.info(f'Allowed prefixes: {self.allowed_prefixes}')
 
     def is_allowed(self, url):
         try:
@@ -53,9 +54,9 @@ class BrokenLinksSpider(scrapy.Spider):
         if response.status != 200:
             item = {}
             item['url'] = response.url
-            item['prev_page'] = response.meta['prev_url']
-            item['prev_link_url'] = response.meta['prev_href']
-            item['prev_link_text'] = response.meta['prev_link_text']
+            item['prev_page'] = response.meta.get('prev_url')
+            item['prev_link_url'] = response.meta.get('prev_href')
+            item['prev_link_text'] = response.meta.get('prev_link_text')
             item['status'] = response.status
 
             yield item
@@ -68,10 +69,8 @@ class BrokenLinksSpider(scrapy.Spider):
         for link in response.css('a'):
             href = link.xpath('@href').extract()
             text = link.xpath('text()').extract()
-            # print('#'*25, f'{href=}')
 
             if self.is_allowed(href):
-                # print('ALLOWED')
                 yield response.follow(link, self.parse,
                     meta={
                         'prev_link_text': text,
