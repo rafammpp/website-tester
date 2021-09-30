@@ -33,7 +33,9 @@ class BrokenLinksSpider(scrapy.Spider):
         logging.info(f'Allowed prefixes: {self.allowed_prefixes}')
 
     def is_allowed(self, url):
-        if not (url.startswith('/') or url.startswith('http')):
+        match = re.compile(r"^(?P<schema>[^:]+)://.+$").match(url)
+        schema = match.group('schema') if match else None
+        if schema and not schema.startswith('http'):
             return False
         try:
             return not self.allowed_prefixes or get_prefix(url) in self.allowed_prefixes
@@ -58,7 +60,7 @@ class BrokenLinksSpider(scrapy.Spider):
         for link in response.css('a'):
             href = link.xpath('@href').get()
             text = link.xpath('text()').get()
-            if self.is_allowed(href):
+            if href and self.is_allowed(href):
                 yield response.follow(link, self.parse,
                     meta={
                         'link_text': text,
