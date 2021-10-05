@@ -14,9 +14,9 @@ class BrokenLinksSpider(scrapy.Spider):
     allowed_prefixes = []
     start_urls = []
 
-    def __init__(self, urls, prefixes, *args, **kwargs):
+    def __init__(self, urls, prefixes, domains, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+        self.allowed_domains += domains
         for url in urls:
             self.start_urls.append(url)
             regex = re.compile(r'http(s)?://(?P<domain>[^/]+)(/(?P<path>.*))?')
@@ -40,15 +40,16 @@ class BrokenLinksSpider(scrapy.Spider):
         try:
             return not self.allowed_prefixes or get_prefix(url) in self.allowed_prefixes
         except (TypeError, AttributeError):
-            return False
-    
+            return True
+
     def parse(self, response):
         if response.status != 200:
-            item = {}
-            item['url'] = response.url
-            item['link_text'] = response.meta.get('link_text')
-            item['previous_page'] = response.meta.get('prev_url')
-            item['status'] = response.status
+            item = {
+                'url': response.url,
+                'link_text': response.meta.get('link_text'),
+                'previous_page': response.meta.get('prev_url'),
+                'status': response.status,
+            }
 
             yield item
         
@@ -75,6 +76,9 @@ class BrokenLinksSpider(scrapy.Spider):
 parser = argparse.ArgumentParser(description='Check site internal links')
 parser.add_argument('urls', type=str, nargs='+', help='URLs, with scheme, to start with.')
 parser.add_argument('-p', '--prefixes', dest='prefixes', nargs='+', help="Allowed lang_code prefixes. Useful to check only a few langs.", default=[])
+parser.add_argument('-d', '--domains', dest='domains', nargs='+', help='Only follow links from these domains.')
+parser.add_argument('--disable-throttling', dest='disable_throttling', action='store_true', help='Disable the authrottling extension. This will impact a lot on the server performance, be nice', default=False)
+parser.add_argument('--disable-retry', dest='disable_retry', action='store_true', help='If an URL returns an error, don\'t retry.', default=False)
 args = parser.parse_args()
 
 if args.urls:
@@ -84,15 +88,15 @@ if args.urls:
         },
         "BOT_NAME": 'website_tester',
         "DEPTH_LIMIT": 0,
-        "RETRY_ENABLED": False,
+        "RETRY_ENABLED": not args.disable_retry,
         "HTTPERROR_ALLOW_ALL": True,
         "ROBOTSTXT_OBEY": True,
         "DEFAULT_REQUEST_HEADERS": {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en',
         },
-        "AUTOTHROTTLE_ENABLED": True,
+        "AUTOTHROTTLE_ENABLED": not args.disable_throttling,
     })
 
-    process.crawl(BrokenLinksSpider, urls=args.urls, prefixes=args.prefixes)
+    process.crawl(BrokenLinksSpider, urls=args.urls, prefixes=args.prefixes, domains=args.domains)
     process.start()
