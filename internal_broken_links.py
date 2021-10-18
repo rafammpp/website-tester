@@ -33,8 +33,10 @@ class BrokenLinksSpider(scrapy.Spider):
         logging.info(f'Allowed prefixes: {self.allowed_prefixes}')
 
     def is_allowed(self, url):
+        if url.startswith('mailto:') or url.startswith('tel:'): return False
         match = re.compile(r"^(?P<schema>[^:]+)://.+$").match(url)
         schema = match.group('schema') if match else None
+        
         if schema and not schema.startswith('http'):
             return False
         try:
@@ -87,6 +89,7 @@ if args.urls:
             f"exported_broken_links/broken_links_{time.strftime('%Y-%m-%d_%H%M')}.csv": {"format": "csv"},
         },
         "BOT_NAME": 'website_tester',
+        "LOG_LEVEL": 'INFO',
         "DEPTH_LIMIT": 0,
         "RETRY_ENABLED": not args.disable_retry,
         "HTTPERROR_ALLOW_ALL": True,
