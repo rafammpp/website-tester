@@ -86,7 +86,7 @@ args = parser.parse_args()
 if args.urls:
     process = CrawlerProcess(settings={
         "FEEDS": {
-            f"exported_broken_links/broken_links_{time.strftime('%Y-%m-%d_%H%M')}.csv": {"format": "csv"},
+            f"exported_broken_links/broken_links_{time.strftime('%Y-%m-%d_%H%M%S')}.csv": {"format": "csv"},
         },
         "BOT_NAME": 'website_tester',
         "LOG_LEVEL": 'INFO',
