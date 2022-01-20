@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import scrapy, re, logging, argparse, time
 from scrapy.crawler import CrawlerProcess
 
@@ -13,10 +14,12 @@ class BrokenLinksSpider(scrapy.Spider):
     allowed_domains = []
     allowed_prefixes = []
     start_urls = []
+    accept_lang = ''
 
-    def __init__(self, urls, prefixes, domains, *args, **kwargs):
+    def __init__(self, urls, prefixes, domains, accept_lang='', *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.allowed_domains += domains
+        self.accept_lang = accept_lang
         for url in urls:
             self.start_urls.append(url)
             regex = re.compile(r'http(s)?://(?P<domain>[^/]+)(/(?P<path>.*))?')
@@ -55,10 +58,13 @@ class BrokenLinksSpider(scrapy.Spider):
 
             yield item
         
-        try:
-            lang = response.xpath('/html/@lang').get()
-        except:
-            lang = 'en'
+        if self.accept_lang:
+            lang = self.accept_lang
+        else:
+            try:
+                lang = response.xpath('/html/@lang').get()
+            except:
+                lang = 'en'
         
         for link in response.css('a'):
             href = link.xpath('@href').get()
@@ -81,12 +87,16 @@ parser.add_argument('-p', '--prefixes', dest='prefixes', nargs='+', help="Allowe
 parser.add_argument('-d', '--domains', dest='domains', nargs='+', help='Only follow links from these domains.')
 parser.add_argument('--disable-throttling', dest='disable_throttling', action='store_true', help='Disable the authrottling extension. This will impact a lot on the server performance, be nice', default=False)
 parser.add_argument('--disable-retry', dest='disable_retry', action='store_true', help='If an URL returns an error, don\'t retry.', default=False)
+parser.add_argument('--csv-name', dest='csv_name', default='')
+parser.add_argument('--accept-lang', default='', help='Specify an accept lang for request headers.')
 args = parser.parse_args()
+
+suffix = f"{time.strftime('%Y-%m-%d')}_{args.csv_name}"
 
 if args.urls:
     process = CrawlerProcess(settings={
         "FEEDS": {
-            f"exported_broken_links/broken_links_{time.strftime('%Y-%m-%d_%H%M%S')}.csv": {"format": "csv"},
+            f"exported_broken_links/broken_links_{suffix}.csv": {"format": "csv"},
         },
         "BOT_NAME": 'website_tester',
         "CONCURRENT_REQUESTS": 32,
@@ -97,10 +107,16 @@ if args.urls:
         "ROBOTSTXT_OBEY": True,
         "DEFAULT_REQUEST_HEADERS": {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en',
+            'Accept-Language': args.accept_lang or 'en',
         },
         "AUTOTHROTTLE_ENABLED": not args.disable_throttling,
     })
 
-    process.crawl(BrokenLinksSpider, urls=args.urls, prefixes=args.prefixes, domains=args.domains)
+    process.crawl(
+        BrokenLinksSpider,
+        urls=args.urls,
+        prefixes=args.prefixes,
+        domains=args.domains,
+        accept_lang=args.accept_lang,
+    )
     process.start()
